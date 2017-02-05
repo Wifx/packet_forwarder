@@ -117,6 +117,8 @@ directory.
 * global_conf.json.US902.*: to be used for Semtech reference design v1.0 or
   v1.5. (No calibration done for RSSI offset and TX gains yet).
   Configured for US 902MHz channels.
+* global_conf.json.LORIX_One.*.EU868.basic: to be used for LORIX One gateway
+  (No calibration done for RSSI offset yet).
 
 Beside board related flavours, there are "features" flavours named "basic",
 "gps", "beacon".
