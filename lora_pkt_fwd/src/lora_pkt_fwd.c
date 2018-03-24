@@ -1055,69 +1055,89 @@ int main(void)
     hints.ai_family = AF_INET; /* WA: Forcing IPv4 as AF_UNSPEC makes connection on localhost to fail */
     hints.ai_socktype = SOCK_DGRAM;
 
-    /* look for server address w/ upstream port */
-    i = getaddrinfo(serv_addr, serv_port_up, &hints, &result);
-    if (i != 0) {
-        MSG("ERROR: [up] getaddrinfo on address %s (PORT %s) returned %s\n", serv_addr, serv_port_up, gai_strerror(i));
-        exit(EXIT_FAILURE);
-    }
+	do
+	{
+		if(result != NULL){
+			freeaddrinfo(result);
+		}
 
-    /* try to open socket for upstream traffic */
-    for (q=result; q!=NULL; q=q->ai_next) {
-        sock_up = socket(q->ai_family, q->ai_socktype,q->ai_protocol);
-        if (sock_up == -1) continue; /* try next field */
-        else break; /* success, get out of loop */
-    }
-    if (q == NULL) {
-        MSG("ERROR: [up] failed to open socket to any of server %s addresses (port %s)\n", serv_addr, serv_port_up);
-        i = 1;
-        for (q=result; q!=NULL; q=q->ai_next) {
-            getnameinfo(q->ai_addr, q->ai_addrlen, host_name, sizeof host_name, port_name, sizeof port_name, NI_NUMERICHOST);
-            MSG("INFO: [up] result %i host:%s service:%s\n", i, host_name, port_name);
-            ++i;
-        }
-        exit(EXIT_FAILURE);
-    }
+		do{
+			/* look for server address w/ upstream port */
+			i = getaddrinfo(serv_addr, serv_port_up, &hints, &result);
+			if (i != 0) {
+				MSG("ERROR: [connect] getaddrinfo on address %s (PORT %s) returned %s\n", serv_addr, serv_port_up, gai_strerror(i));
+				usleep(5*1000*1000);
+				MSG("INFO: [connect] retry connection for server %s\n", serv_addr);
+			}else{
+				break;
+			}
+		}while(1);
 
-    /* connect so we can send/receive packet with the server only */
-    i = connect(sock_up, q->ai_addr, q->ai_addrlen);
-    if (i != 0) {
-        MSG("ERROR: [up] connect returned %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    freeaddrinfo(result);
+		/* try to open socket for upstream traffic */
+		for (q=result; q!=NULL; q=q->ai_next) {
+			sock_up = socket(q->ai_family, q->ai_socktype,q->ai_protocol);
+			if (sock_up == -1) continue; /* try next field */
+			else break; /* success, get out of loop */
+		}
+		if (q == NULL) {
+			MSG("ERROR: [up] failed to open socket to any of server %s addresses (port %s)\n", serv_addr, serv_port_up);
+			i = 1;
+			for (q=result; q!=NULL; q=q->ai_next) {
+				getnameinfo(q->ai_addr, q->ai_addrlen, host_name, sizeof host_name, port_name, sizeof port_name, NI_NUMERICHOST);
+				MSG("INFO: [up] result %i host:%s service:%s\n", i, host_name, port_name);
+				++i;
+			}
+			continue;
+		}
 
-    /* look for server address w/ downstream port */
-    i = getaddrinfo(serv_addr, serv_port_down, &hints, &result);
-    if (i != 0) {
-        MSG("ERROR: [down] getaddrinfo on address %s (port %s) returned %s\n", serv_addr, serv_port_up, gai_strerror(i));
-        exit(EXIT_FAILURE);
-    }
+		/* connect so we can send/receive packet with the server only */
+		i = connect(sock_up, q->ai_addr, q->ai_addrlen);
+		if (i != 0) {
+			MSG("ERROR: [up] connect on address %s (port %s) returned: %s\n", serv_addr, serv_port_down, strerror(errno));
+			continue;
+		}
+		freeaddrinfo(result);
 
-    /* try to open socket for downstream traffic */
-    for (q=result; q!=NULL; q=q->ai_next) {
-        sock_down = socket(q->ai_family, q->ai_socktype,q->ai_protocol);
-        if (sock_down == -1) continue; /* try next field */
-        else break; /* success, get out of loop */
-    }
-    if (q == NULL) {
-        MSG("ERROR: [down] failed to open socket to any of server %s addresses (port %s)\n", serv_addr, serv_port_up);
-        i = 1;
-        for (q=result; q!=NULL; q=q->ai_next) {
-            getnameinfo(q->ai_addr, q->ai_addrlen, host_name, sizeof host_name, port_name, sizeof port_name, NI_NUMERICHOST);
-            MSG("INFO: [down] result %i host:%s service:%s\n", i, host_name, port_name);
-            ++i;
-        }
-        exit(EXIT_FAILURE);
-    }
+		/* look for server address w/ downstream port */
+		i = getaddrinfo(serv_addr, serv_port_down, &hints, &result);
+		if (i != 0) {
+			MSG("ERROR: [down] getaddrinfo on address %s (port %s) returned: %s\n", serv_addr, serv_port_down, gai_strerror(i));
+			shutdown(sock_up, SHUT_RDWR);
+			continue;
+		}
 
-    /* connect so we can send/receive packet with the server only */
-    i = connect(sock_down, q->ai_addr, q->ai_addrlen);
-    if (i != 0) {
-        MSG("ERROR: [down] connect returned %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    freeaddrinfo(result);
+		/* try to open socket for downstream traffic */
+		for (q=result; q!=NULL; q=q->ai_next) {
+			sock_down = socket(q->ai_family, q->ai_socktype,q->ai_protocol);
+			if (sock_down == -1) continue; /* try next field */
+			else break; /* success, get out of loop */
+		}
+		if (q == NULL) {
+			MSG("ERROR: [down] failed to open socket to any of server %s addresses (port %s)\n", serv_addr, serv_port_down);
+			i = 1;
+			for (q=result; q!=NULL; q=q->ai_next) {
+				getnameinfo(q->ai_addr, q->ai_addrlen, host_name, sizeof host_name, port_name, sizeof port_name, NI_NUMERICHOST);
+				MSG("INFO: [down] result %i host:%s service:%s\n", i, host_name, port_name);
+				++i;
+			}
+			shutdown(sock_up, SHUT_RDWR);
+			continue;
+		}
+
+		/* connect so we can send/receive packet with the server only */
+		i = connect(sock_down, q->ai_addr, q->ai_addrlen);
+		if (i != 0) {
+			MSG("ERROR: [down] connect address %s (port %s) returned: %s\n", serv_addr, serv_port_down, strerror(errno));
+			shutdown(sock_up, SHUT_RDWR);
+			continue;
+		}
+		freeaddrinfo(result);
+
+		/* If we made it through to here, this server is live */
+		MSG("INFO: Successfully contacted server %s\n", serv_addr);
+
+		break;
+	}while(1);
 
     /* starting the concentrator */
     i = lgw_start();
